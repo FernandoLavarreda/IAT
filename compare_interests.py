@@ -5,10 +5,11 @@ import re
 import os.path
 from enum import Enum
 from inspect import signature
+from rich.table import Table
+from rich.console import Console
+import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Callable, Tuple
-from rich.console import Console
-from rich.table import Table
 
 
 COMMANDS = {}
@@ -242,6 +243,8 @@ class Result:
     net_investment:float
     increments:list[float]
     effective_deposits:list[float]
+    effective_period:Period
+    name:str
 
 
 def stats(increments, effective_deposits)->list[float]:
@@ -266,7 +269,8 @@ def process(args:list[str])->Result:
         effective_rate, effective_period = compute_rate_period(initial_rate, start, end)
         effective_deposits = compute_deposits_list(deposits, fill, nunits*unit_time.value//effective_period.value)
         increments = compound_interest(effective_deposits, effective_rate)
-        result = Result(*stats(increments, effective_deposits), increments, effective_deposits)
+        result = Result(*stats(increments, effective_deposits), increments, effective_deposits, effective_period,\
+                        name=ALIASES[effective_period][0]+"|"+str(initial_rate)+"%")
         return result
     except Exception as e:
         print(e)
@@ -303,23 +307,44 @@ def write(buf:str):
 def write_file(buf:str, results:list[Result]):
     try:
         with open(buf) as fd:
-            for result in results:
-                fd.write(str(result.per_returned)+"\t|\t"+str(result.utility)+"\t|\t"+\
+            for i, result in enumerate(results):
+                fd.write(str(i)+"\t|\t"+name+"\t|\t"+str(result.per_returned)+"\t|\t"+str(result.utility)+"\t|\t"+\
                          str(result.increments[-1])+"\t|\t"+str(result.net_investment)+"\n")
     except Exception:
         raise ValueError("Could not write file: "+buf)
 
 
 def write_console(results:list[Result]):
-    columns = ("% Returned", "Utility", "Total", "Net Investment")
+    columns = ("ID", "Name", "% Returned", "Utility", "Total", "Net Investment")
     console = Console()
     table = Table(show_header=True, header_style="bold magenta")
     for column in columns:
         table.add_column(column)
-    for result in results:
-        table.add_row("[green]"+str(result.per_returned*100)+"[/green]", "[blue]"+str(result.utility)+"[/blue]",\
+    for i, result in enumerate(results):
+        table.add_row("[red]"+str(i)+"[/red]", "[#db7c07]"+result.name+"[/#db7c07]","[green]"+str(result.per_returned*100)+"[/green]", "[blue]"+str(result.utility)+"[/blue]",\
                       "[white]"+str(result.increments[-1])+"[/white]","[bold]"+str(result.net_investment)+"[/bold]")
     console.print(table)
+
+@command(name="-g", required=False, alias="--graph")
+def parse_graph(base:Period):
+    """Graph results through time, x axis must be a valid Period
+        
+        Example:
+         - --graph Y
+         This means that x axis will be in years.
+    """
+    for k,v in ALIASES.items():
+        if base in v:
+            return k
+    raise ValueError("Could not interpret period "+base)
+
+
+def graph(results:list[Result], base:Period):
+    """Graph results through time""" 
+    for i, r in enumerate(results):
+        plt.plot([i*r.effective_period.value/base.value for i in range(len(r.increments))], r.increments, label=f"Results: {i}")
+    plt.legend()
+    plt.show()
 
 
 def main(args:list[str]):
@@ -331,7 +356,7 @@ def main(args:list[str]):
             feed = read("")
             feed.append(" ".join(args))
         else:
-            feed = read(mask["-i"])
+            feed = read(*mask["-i"])
         for n in feed:
             r = process(n.split())
             if r:
@@ -352,6 +377,10 @@ def main(args:list[str]):
             write_console(results)
         else:
             write_file(mask["-o"])
+        if "-g" in mask:
+            base = parse_graph(*mask["-g"])
+            if base:
+                graph(results, base)
 
     except Exception as e:
         print(str(e))
