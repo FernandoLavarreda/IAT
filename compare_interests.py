@@ -14,6 +14,15 @@ from typing import Callable, Tuple
 
 COMMANDS = {}
 
+@dataclass
+class Command:
+    id:int
+    name:str
+    desc:str
+    func:Callable
+    required:bool
+
+
 def command(name:str, required:bool=False, alias:str=""):
     def build_command(func:Callable):
         def wrapper(*args, **kwargs):
@@ -23,10 +32,11 @@ def command(name:str, required:bool=False, alias:str=""):
                 return
             return func(*args, **kwargs)
         assert name not in COMMANDS, "Name "+name+"  has already been added to commands"
-        COMMANDS[name] = (wrapper, func.__doc__, name, required, len(COMMANDS))
+        cmd = Command(len(COMMANDS), name, func.__doc__, wrapper, required)
+        COMMANDS[name] = cmd 
         if alias:
             assert alias not in COMMANDS, "Alias "+alias+" has already been added to commands"
-            COMMANDS[alias] = (wrapper, func.__doc__, name, required, len(COMMANDS)-1)
+            COMMANDS[alias] = cmd 
         return wrapper
     return build_command
 
@@ -187,25 +197,25 @@ def parse_time(command:str):
 def read_args(args:list[str]):
     """Process arguments and flags sent to program
        Converts aliases to names"""
-    max_id = max([v[-1] for v in COMMANDS.values()]) 
+    max_id = max([cmd.id for cmd in COMMANDS.values()]) 
     mask = [1 for i in range(max_id+1)]
     behavior = {}
     last_added = ""
     for arg in args:
         if arg in COMMANDS:
-            behavior[COMMANDS[arg][2]] = []
-            mask[COMMANDS[arg][-1]] = 0
-            last_added = COMMANDS[arg][2]
+            behavior[COMMANDS[arg].name] = []
+            mask[COMMANDS[arg].id] = 0
+            last_added = COMMANDS[arg].name
         else:
             if last_added:
                 behavior[last_added].append(arg)
             else:
                 raise ValueError("Unrecognized command "+arg)
-    if "-i" in behavior and behavior["-i"]:
+    if "-i" in behavior and behavior["-i"] or "-h" in behavior:
         return behavior
-    for k, v in COMMANDS.items():
-        if v[-2] and mask[v[-1]]:
-            raise ValueError("Missing command: "+k+"\n"+v[1])
+    for k, cmd in COMMANDS.items():
+        if cmd.required and mask[cmd.id]:
+            raise ValueError("Missing command: "+k+"\n"+cmd.name)
     return behavior
 
 @command(name="-i", required=False, alias="--input")
@@ -216,7 +226,7 @@ def read(buf:str):
        's' is entered
         
         Example:
-         - --input rs.txt
+         --input rs.txt
     """
     feed = []
     stop = "n"
@@ -261,8 +271,8 @@ def process(args:list[str])->Result:
         init = {}
         mask = read_args(args)
         for k, v in mask.items():
-            if COMMANDS[k][-2]:
-                init[k] = COMMANDS[k][0](*v)
+            if COMMANDS[k].required:
+                init[k] = COMMANDS[k].func(*v)
         initial_rate, start, end = init["-r"]
         deposits, fill = init["-d"]
         nunits, unit_time = init["-t"]
@@ -299,7 +309,7 @@ def write(buf:str):
        selected stdout will be assumed.
        
        Example:
-        - --output fout.txt
+        --output fout.txt
     """
     return buf
 
@@ -330,7 +340,7 @@ def parse_graph(base:Period):
     """Graph results through time, x axis must be a valid Period
         
         Example:
-         - --graph Y
+         --graph Y
          This means that x axis will be in years.
     """
     for k,v in ALIASES.items():
@@ -347,10 +357,48 @@ def graph(results:list[Result], base:Period):
     plt.show()
 
 
+@command(name="-h", required=False, alias="--help")
+def help(command:str):
+    """
+*********************************************************************************|
+Pogram designed to analyze different compound interest scenarios.                |
+By: Fernando Lavarreda                                                           |
+*********************************************************************************|
+                                                                                 |
+       To see particular command type --help command                             |
+                                                                                 |
+        Example usage:                                                           |
+         ./compare_interests.py --rate 0.02:Y --deposits 10000:fill --time 2:Y   |
+                                                                                 |
+---------------------------------------------------------------------------------*"""
+    req = "--"+command if "--"+command in COMMANDS else "-"+command
+    if req in COMMANDS:
+        print(COMMANDS[req].desc)
+        return 0
+    if req.strip()!="-":
+        print("Command "+command+" not recognized")
+        return 0
+    print(COMMANDS["-h"].desc)
+    seen = [COMMANDS["-h"].id,]
+    for c, v in COMMANDS.items():
+        if "--" in c and v.id not in seen:
+            print(v.desc)
+            seen.append(v.id)
+    for c, v in COMMANDS.items():
+        if "-" in c and v.id not in seen:
+            print(v.desc)
+            seen.append(v.id)
+    return 0
+
+
 def main(args:list[str]):
     try:
         mask = read_args(args)
         results = []
+        if "-h" in mask:
+            inp = mask["-h"][0] if mask["-h"] else ""
+            COMMANDS["-h"].func(inp)
+            return
         if "-i" not in mask or not mask["-i"]:
             print("Enter 's' to stop adding analysis")
             feed = read("")
@@ -362,7 +410,7 @@ def main(args:list[str]):
             if r:
                 results.append(r)
         if "-s" in mask and mask["-s"]:
-            i = COMMANDS["-s"][0](*mask["-s"])
+            i = COMMANDS["-s"].func(*mask["-s"])
             match i:
                 case 0:
                     results.sort(key=lambda x: x.per_returned)
