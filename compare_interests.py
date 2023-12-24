@@ -272,6 +272,23 @@ def process(args:list[str])->Result:
         print(e)
 
 
+@command(name="-s", required=False, alias="--sort")
+def sort_results(field:str)->int:
+    """Sort results based on the desired field
+       Accepeted values: 
+        - R: %Returned)
+        - U: Utility
+        - T: Total returned
+        - N: Net investment
+    """
+    fields = ["R", "U", "T", "N"]
+    try:
+        f = fields.index(field)
+    except ValueError:
+        raise ValueError("Invalid argument for sorting "+field)
+    return f
+
+
 @command(name="-o", required=False, alias="--output")
 def write(buf:str):
     """Direct results to stdout or to a file. If no output is
@@ -317,7 +334,20 @@ def main(args:list[str]):
             feed = read(mask["-i"])
         for n in feed:
             r = process(n.split())
-            results.append(r)
+            if r:
+                results.append(r)
+        if "-s" in mask and mask["-s"]:
+            i = COMMANDS["-s"][0](*mask["-s"])
+            match i:
+                case 0:
+                    results.sort(key=lambda x: x.per_returned)
+                case 1:
+                    results.sort(key=lambda x: x.utility)
+                case 2:
+                    results.sort(key=lambda x: x.increments[-1])
+                case 3:
+                    results.sort(key=lambda x: x.net_investment)
+            results = results[::-1]
         if "-o" not in mask or not mask["-o"]:
             write_console(results)
         else:
