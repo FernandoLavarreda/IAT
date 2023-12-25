@@ -10,4 +10,5 @@ venv/
 #Tests
 .pytest_cache/
 
-
+#Vim
+*.swp

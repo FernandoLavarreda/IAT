@@ -26,7 +26,8 @@ class Command:
 def command(name:str, required:bool=False, alias:str=""):
     def build_command(func:Callable):
         def wrapper(*args, **kwargs):
-            if len(signature(func).parameters)!=len(args):
+            sg = list(signature(func).parameters.values())
+            if len(sg)>len(args)+sum([type(v.default)!=type for v in sg]):
                 print("Incorrect number of parameters for "+name)
                 print(func.__doc__)
                 return
@@ -129,19 +130,42 @@ def compute_rate_period(rate:float, start:Period, end:Period):
 
 
 @command(name='-d', alias='--deposits', required=True)
-def parse_deposits(command:str):
-    """Read the deposits to be added to the compount interest analysis.
+def parse_deposits(command:str, sep:str="%"):
+    """Parse series of deposits for interest analysis
+
+    Option 1: Read the simple deposits to be added to the compound interest analysis.
         
         Expected paterns lists of deposits (floats):
          - deposit1:deposit2:deposit3:...
-         - deposit1:...:fill
+         - deposit1:fill
         Where 'fill' will be used to fill missing gaps with the last value of the list
         
         Example:
          --deposits 12000:1000:fill
          This means that the initial balance is 12k followed by deposits of 1k for each
          period
+
+    Option 2: Create a series of deposits with an initial balance + interest generated from
+              another source (i.e an account that generates interest Trimester -> transfer all to a Yearly)
+       
+        Expected pattern:
+         - balance%rate_pattern%deposit_pattern
+        Example:
+         --deposits 12000%0.02:Y:T%12000:1000:fill
+         This means have an initial balance of 12k that will have added the results from a Trimester 2% Year account
+         Take into account that the main account (12k) will have added the result of its_period//trimester.
+         The period is defined in the parameter --rate. So the secondary account may earn interests twice if the main
+         one has a SEMESTER period or four if it has a YEAR period. Bear in mind that period//trimester should be positive
+         otherwise there is no value to add. (Second account is emptied each time)
+
+        Where balance is the initial balance for the main account, rate_pattern (see --help rate)
+        specifies the rate for the short term account and deposit_patter (see --help deposit) are
+        the deposits to the short term account
     """
+    parsed = (0, *parse_deposits1(command)) if sep not in command else (1, *parse_deposits2(command))
+    return parsed 
+
+def parse_deposits1(command:str):
     tokens = command.split(":")
     parsed_tokens = []
     fill = -1 if "fill" == tokens[-1] else len(tokens)
@@ -153,7 +177,28 @@ def parse_deposits(command:str):
     return parsed_tokens, fill==-1
 
 
-def compute_deposits_list(deposits:list[float], fill:bool, periods:int):
+def parse_deposits2(command:str, sep:str="%"):
+    parse = command.split(sep)
+    if len(parse)!=3:
+        raise ValueError("Could not parse deposit pattern "+command)
+    balance, rate, deposits = parse 
+    try:
+        balance = float(balance)
+    except ValueError as e:
+        raise ValueError("Could not interpret balance: "+balance)
+    try:
+        rate, start, end = parse_rate(rate)
+        eff_rate, eff_period = compute_rate_period(rate, start, end)
+    except ValueError as e:
+        raise ValueError("Could not interpret rate inside deposits: \n"+str(e))
+    try:
+        parsed_tokens, fill = parse_deposits1(deposits)
+    except ValueError as e:
+        raise ValueError("Could not interpret deposit for rate assigned in deposits:\n"+str(e))
+    return balance, parsed_tokens, fill, eff_rate, eff_period
+    
+
+def compute_deposits_list1(deposits:list[float], fill:bool, periods:int):
     """Create list of deposits the number of periods must be an integer.
       If the deposits excede the number of periods deposits are dropped.
       If they are less they are filled with 0s unless the parameter fill
@@ -164,6 +209,22 @@ def compute_deposits_list(deposits:list[float], fill:bool, periods:int):
         return deposits[:periods]
     filler = deposits[-1] if fill else 0
     return deposits+[filler for i in range(periods-len(deposits))]
+
+
+def compute_deposits_list2(balance:float, deposits:list[float], fill:bool, eff_rate:float, eff_period:Period, period:Period, periods:int):
+    """Create list of deposits as the result of another compound interest analysis.
+       Imagine an account that generates interest every Year and an account that
+       generates every Trimester. Now what if you would invest in the latter and
+       when a Year ends you empty this account and move the money to the former?
+       This is an optimal strategy assuming that there is money idling and the
+       Year account is closed (meaning you can't keep depositing until the period ends).
+       Ideally the Year account/deposit should have a better interest as well
+    """
+    assert period.value//eff_period.value, "No interest will be generated for the deposits since "+str(eff_period)+">"+str(period)
+    net_deposits = compute_deposits_list1(deposits, fill, period.value//eff_period.value)
+    actual_deposit = compound_interest(net_deposits, eff_rate)[-1] #The last balance from the compound interest is what will be invested
+    return [balance,]+[actual_deposit]*(periods-1), [balance,]+net_deposits*(periods-1)
+
 
 
 @command(name='-t', alias='--time', required=True)
@@ -257,9 +318,9 @@ class Result:
     name:str
 
 
-def stats(increments, effective_deposits)->list[float]:
+def stats(increments, net_deposits)->list[float]:
     """Compute total invested, utilities, %returned"""
-    net_investment = sum(effective_deposits)
+    net_investment = sum(net_deposits)
     utility = increments[-1]-net_investment
     per_returned = utility/net_investment
     return per_returned, utility, net_investment
@@ -274,12 +335,16 @@ def process(args:list[str])->Result:
             if COMMANDS[k].required:
                 init[k] = COMMANDS[k].func(*v)
         initial_rate, start, end = init["-r"]
-        deposits, fill = init["-d"]
+        compound_deposits, *parsed_deposits = init["-d"]
         nunits, unit_time = init["-t"]
         effective_rate, effective_period = compute_rate_period(initial_rate, start, end)
-        effective_deposits = compute_deposits_list(deposits, fill, nunits*unit_time.value//effective_period.value)
+        if compound_deposits:
+            effective_deposits, net_deposits = compute_deposits_list2(*parsed_deposits, effective_period, nunits*unit_time.value//effective_period.value)
+        else:
+            effective_deposits = compute_deposits_list1(*parsed_deposits, nunits*unit_time.value//effective_period.value)
+            net_deposits = effective_deposits
         increments = compound_interest(effective_deposits, effective_rate)
-        result = Result(*stats(increments, effective_deposits), increments, effective_deposits, effective_period,\
+        result = Result(*stats(increments, net_deposits), increments, net_deposits, effective_period,\
                         name=ALIASES[effective_period][0]+"|"+str(initial_rate)+"%")
         return result
     except Exception as e:
