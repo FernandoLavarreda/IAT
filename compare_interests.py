@@ -1,6 +1,7 @@
 #!./venv/bin/python3
+#IAT - Investment Analysis Tool
 #Fernando Lavarreda
-import traceback
+
 import re
 import os.path
 from enum import Enum
@@ -33,7 +34,7 @@ def command(name:str, required:bool=False, alias:str=""):
                 return
             return func(*args, **kwargs)
         assert name not in COMMANDS, "Name "+name+"  has already been added to commands"
-        cmd = Command(len(COMMANDS), name, func.__doc__, wrapper, required)
+        cmd = Command(len(COMMANDS), name, "Command:\n\t"+alias+" "+name+"\n\n\t"+func.__doc__, wrapper, required)
         COMMANDS[name] = cmd 
         if alias:
             assert alias not in COMMANDS, "Alias "+alias+" has already been added to commands"
@@ -56,7 +57,7 @@ class Period(Enum):
 
 ALIASES = {
           Period.DAY:("D", "DAY", "1"),
-          Period.MONTH:("M", "", "30"),
+          Period.MONTH:("M", "MONTH", "30"),
           Period.BIMESTER:("B", "BIMESTER", "60"),
           Period.TRIMESTER:("T", "TRIMESTER", "90"),
           Period.QUADMESTER:("Q", "QUADMESTER", "120"),
@@ -89,15 +90,15 @@ def compound_interest(deposits:list[float], rate:float)->list[float]:
 def parse_rate(command:str):
     """Process interest rate of an entry:
        
-       Expected patterns:
-        - float:Period
-        - float:Period:Period
+        Expected patterns:
+         - float:Period
+         - float:Period:Period
        
-       Example:
-        --rate 0.02:Y:T
-        This means that the rate is 2% annually but the period of composition is each trimester so
-        the interest will be 90/365*0.02
-        If the second option is greater the effective rate is (1+rate)^(second/first)
+        Example:
+         --rate 0.02:Y:T
+         This means that the rate is 2% annually but the period of composition is each trimester so
+         the interest will be 90/365*0.02
+         If the second option is greater the effective rate is (1+rate)^(second/first)
     """
     tokens = command.split(":")
     assert len(tokens)<=3, "Rate must be either float:Period or float:Period:Period" 
@@ -133,23 +134,26 @@ def compute_rate_period(rate:float, start:Period, end:Period):
 def parse_deposits(command:str, sep:str="%"):
     """Parse series of deposits for interest analysis
 
-    Option 1: Read the simple deposits to be added to the compound interest analysis.
+        Option 1: Read the simple deposits to be added to the compound interest analysis.
         
-        Expected paterns lists of deposits (floats):
-         - deposit1:deposit2:deposit3:...
-         - deposit1:fill
-        Where 'fill' will be used to fill missing gaps with the last value of the list
+         Expected paterns lists of deposits (floats):
+          - deposit1:deposit2:deposit3:...
+          - deposit1:fill
+         
+         Where 'fill' will be used to fill missing gaps with the last value of the list
         
-        Example:
-         --deposits 12000:1000:fill
-         This means that the initial balance is 12k followed by deposits of 1k for each
-         period
+         Example:
+          --deposits 12000:1000:fill
+          This means that the initial balance is 12k followed by deposits of 1k for each
+          period
 
-    Option 2: Create a series of deposits with an initial balance + interest generated from
-              another source (i.e an account that generates interest Trimester -> transfer all to a Yearly)
+
+        Option 2: Create a series of deposits with an initial balance + interest generated from
+        another source (i.e an account that generates interest Trimester -> transfer all to a Yearly)
        
-        Expected pattern:
-         - balance%rate_pattern%deposit_pattern
+         Expected pattern:
+          - balance%rate_pattern%deposit_pattern
+        
         Example:
          --deposits 12000%0.02:Y:T%12000:1000:fill
          This means have an initial balance of 12k that will have added the results from a Trimester 2% Year account
@@ -158,9 +162,9 @@ def parse_deposits(command:str, sep:str="%"):
          one has a SEMESTER period or four if it has a YEAR period. Bear in mind that period//trimester should be positive
          otherwise there is no value to add. (Second account is emptied each time)
 
-        Where balance is the initial balance for the main account, rate_pattern (see --help rate)
-        specifies the rate for the short term account and deposit_patter (see --help deposit) are
-        the deposits to the short term account
+         Where balance is the initial balance for the main account, rate_pattern (see --help rate)
+         specifies the rate for the short term account and deposit_patter (see --help deposit) are
+         the deposits to the short term account
     """
     parsed = (0, *parse_deposits1(command)) if sep not in command else (1, *parse_deposits2(command))
     return parsed 
@@ -281,13 +285,13 @@ def read_args(args:list[str]):
 
 @command(name="-i", required=False, alias="--input")
 def read(buf:str):   
-    """Get input from a file or from stdin, a file is read until EOF
-       each line must be a valid command. If no argument is provided
-       it is assumed that assummed stdin which is read until a single
-       's' is entered
+    """Get input from a file(s) or from stdin, a file is read until EOF
+        each line must be a valid command. If no argument(s) is provided
+        it is assumed that assummed stdin which is read until a single
+        's' is entered
         
-        Example:
-         --input rs.txt
+         Example:
+          --input run-1.txt run-2.txt
     """
     feed = []
     stop = "n"
@@ -358,9 +362,9 @@ def process(args:list[str])->Result:
 
 @command(name="-n", required=False, alias="--name")
 def name(n:str):
-    """Provide a name to an analysis to make comparisons easier.
-       Default name:
-        - Period-nominal_rate
+    """Provide a name to an analysis to make comparisons easier
+        Default name:
+         - Period-nominal_rate
     """
     return n
 
@@ -368,11 +372,11 @@ def name(n:str):
 @command(name="-s", required=False, alias="--sort")
 def sort_results(field:str)->int:
     """Sort results based on the desired field
-       Accepeted values: 
-        - R: %Returned)
-        - U: Utility
-        - T: Total returned
-        - N: Net investment
+        Accepeted values: 
+         - R: %Returned)
+         - U: Utility
+         - T: Total returned
+         - N: Net investment
     """
     fields = ["R", "U", "T", "N"]
     try:
@@ -385,10 +389,10 @@ def sort_results(field:str)->int:
 @command(name="-o", required=False, alias="--output")
 def write(buf:str):
     """Direct results to stdout or to a file. If no output is
-       selected stdout will be assumed.
+        selected stdout will be assumed.
        
-       Example:
-        --output fout.txt
+        Example:
+         --output fout.txt
     """
     return buf
 
@@ -440,6 +444,7 @@ def graph(results:list[Result], base:Period):
 def help(command:str):
     """
 *********************************************************************************|
+Investment Analysis Tool (IAT)                                                   |
 Pogram designed to analyze different compound interest scenarios.                |
 By: Fernando Lavarreda                                                           |
 *********************************************************************************|
@@ -449,7 +454,9 @@ By: Fernando Lavarreda                                                          
         Example usage:                                                           |
          ./compare_interests.py --rate 0.02:Y --deposits 10000:fill --time 2:Y   |
                                                                                  |
----------------------------------------------------------------------------------*"""
+---------------------------------------------------------------------------------*
+    
+    """
     req = "--"+command if "--"+command in COMMANDS else "-"+command
     if req in COMMANDS:
         print(COMMANDS[req].desc)
@@ -459,12 +466,20 @@ By: Fernando Lavarreda                                                          
         return 0
     print(COMMANDS["-h"].desc)
     seen = [COMMANDS["-h"].id,]
-    for c, v in COMMANDS.items():
-        if "--" in c and v.id not in seen:
-            print(v.desc)
-            seen.append(v.id)
-    for c, v in COMMANDS.items():
-        if "-" in c and v.id not in seen:
+    print("""PERIODS: 
+    They are used to state time of analysis rates and graphing. Where applicable
+    they can be referenced either by short form, long form or by value. Existing periods:
+""")
+    max_name = max([len(a[1]) for a in ALIASES.values()])
+    ntabs = max_name//8+1
+    print("\t\tS\t-\tL"+"\t"*ntabs+"-\tV\n")
+    for alias in ALIASES.values():
+        print("\t\t"+alias[0], end="\t|\t")
+        print(alias[1]+"\t"*(ntabs-len(alias[1])//8), end="|\t")
+        print(alias[2]) 
+    print()
+    for v in COMMANDS.values():
+        if v.id not in seen:
             print(v.desc)
             seen.append(v.id)
     return 0
