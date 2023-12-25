@@ -1,6 +1,6 @@
 #!/home/ferlavarreda/trash/venv/bin/py
 #Fernando Lavarreda
-
+import traceback
 import re
 import os.path
 from enum import Enum
@@ -334,6 +334,8 @@ def process(args:list[str])->Result:
         for k, v in mask.items():
             if COMMANDS[k].required:
                 init[k] = COMMANDS[k].func(*v)
+        if None in init.values(): 
+            raise ValueError("Missing arguments")
         initial_rate, start, end = init["-r"]
         compound_deposits, *parsed_deposits = init["-d"]
         nunits, unit_time = init["-t"]
@@ -345,10 +347,20 @@ def process(args:list[str])->Result:
             net_deposits = effective_deposits
         increments = compound_interest(effective_deposits, effective_rate)
         result = Result(*stats(increments, net_deposits), increments, net_deposits, effective_period,\
-                        name=ALIASES[effective_period][0]+"|"+str(initial_rate)+"%")
+                        name=ALIASES[effective_period][0]+"-"+str(initial_rate)+"%")
         return result
+    except ValueError:
+        return None
     except Exception as e:
         print(e)
+
+
+@command(name="-n", required=False, alias="--name")
+def name(n:str):
+    """Assign a name to each result
+       Default is Period-nominal rate
+    """
+    return n
 
 
 @command(name="-s", required=False, alias="--sort")
@@ -381,11 +393,11 @@ def write(buf:str):
 
 def write_file(buf:str, results:list[Result]):
     try:
-        with open(buf) as fd:
+        with open(buf, "w") as fd:
             for i, result in enumerate(results):
-                fd.write(str(i)+"\t|\t"+name+"\t|\t"+str(result.per_returned)+"\t|\t"+str(result.utility)+"\t|\t"+\
-                         str(result.increments[-1])+"\t|\t"+str(result.net_investment)+"\n")
-    except Exception:
+                fd.write(str(i)+"|"+result.name+"|"+str(result.per_returned*100)+"|"+str(result.utility)+"|"+\
+                         str(result.increments[-1])+"|"+str(result.net_investment)+"\n")
+    except Exception as e:
         raise ValueError("Could not write file: "+buf)
 
 
@@ -469,7 +481,9 @@ def main(args:list[str]):
             feed = read("")
             feed.append(" ".join(args))
         else:
-            feed = read(*mask["-i"])
+            feed = []
+            for f in mask["-i"]:
+                feed += read(f)
         for n in feed:
             r = process(n.split())
             if r:
@@ -487,10 +501,11 @@ def main(args:list[str]):
                     results.sort(key=lambda x: x.net_investment)
             results = results[::-1]
         if "-o" not in mask or not mask["-o"]:
-            write_console(results)
+            if results:
+                write_console(results)
         else:
-            write_file(mask["-o"])
-        if "-g" in mask:
+            write_file(mask["-o"][0], results)
+        if "-g" in mask and results:
             base = parse_graph(*mask["-g"])
             if base:
                 graph(results, base)
