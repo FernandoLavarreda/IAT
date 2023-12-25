@@ -1,4 +1,4 @@
-#!/home/ferlavarreda/trash/venv/bin/py
+#!./venv/bin/python3
 #Fernando Lavarreda
 import traceback
 import re
@@ -346,8 +346,9 @@ def process(args:list[str])->Result:
             effective_deposits = compute_deposits_list1(*parsed_deposits, nunits*unit_time.value//effective_period.value)
             net_deposits = effective_deposits
         increments = compound_interest(effective_deposits, effective_rate)
+        name = mask["-n"][0] if "-n" in mask and len(mask["-n"]) else ALIASES[effective_period][0]+"-"+str(initial_rate)+"%"
         result = Result(*stats(increments, net_deposits), increments, net_deposits, effective_period,\
-                        name=ALIASES[effective_period][0]+"-"+str(initial_rate)+"%")
+                        name=name)
         return result
     except ValueError:
         return None
@@ -357,8 +358,9 @@ def process(args:list[str])->Result:
 
 @command(name="-n", required=False, alias="--name")
 def name(n:str):
-    """Assign a name to each result
-       Default is Period-nominal rate
+    """Provide a name to an analysis to make comparisons easier.
+       Default name:
+        - Period-nominal_rate
     """
     return n
 
