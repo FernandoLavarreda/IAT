@@ -2,7 +2,6 @@
 #IAT - Investment Analysis Tool
 #Fernando Lavarreda
 
-import re
 import os.path
 from enum import Enum
 from inspect import signature
@@ -101,7 +100,8 @@ def parse_rate(command:str):
          If the second option is greater the effective rate is (1+rate)^(second/first)
     """
     tokens = command.split(":")
-    assert len(tokens)<=3, "Rate must be either float:Period or float:Period:Period" 
+    if len(tokens) != 3 and len(tokens)!=2:
+        raise ValueError("Rate must be either float:Period or float:Period:Period")
     try:
         rate = float(tokens[0])
     except ValueError:
@@ -230,7 +230,6 @@ def compute_deposits_list2(balance:float, deposits:list[float], fill:bool, eff_r
     return [balance,]+[actual_deposit]*(periods-1), [balance,]+net_deposits*(periods-1)
 
 
-
 @command(name='-t', alias='--time', required=True)
 def parse_time(command:str):
     """Interpret the time where the analysis should be done
@@ -243,7 +242,8 @@ def parse_time(command:str):
          This means 14 years for the analysis
     """
     tokens = command.split(":")
-    assert len(tokens)==2, "Must provide nperiods:Period to determine time scope of analysis"
+    if len(tokens)!=2:
+        raise ValueError("Must provide nperiods:Period to determine time scope of analysis")
     try:
         nunits = int(tokens[0])
     except ValueError:
@@ -256,7 +256,6 @@ def parse_time(command:str):
     if not unit:
         raise ValueError("Could not interpret unit: "+token[1])
     return nunits, unit 
-
 
 
 def read_args(args:list[str]):
@@ -301,7 +300,7 @@ def read(buf:str):
         if not os.path.isfile(buf):
             raise ValueError(buf+" is not a file")
         file = open(buf)
-        feed = [line for line in file.readlines() if len(line) and "#" !=line[0]]
+        feed = [line for line in file.readlines() if len(line.strip())>1 and "#" !=line[0]] #Account for carriage return as possible end of line
         file.close()
         stop = ""
     while stop:
@@ -356,10 +355,12 @@ def process(args:list[str])->Result:
         result = Result(*stats(increments, net_deposits), increments, net_deposits, effective_period,\
                         name=name)
         return result
-    except ValueError:
-        return None
+    except ValueError as p:
+        raise ValueError(str(p))
     except Exception as e:
+        print(args)
         print(e)
+
 
 
 @command(name="-n", required=False, alias="--name")
@@ -437,10 +438,14 @@ def parse_graph(base:Period):
 
 def graph(results:list[Result], base:Period):
     """Graph results through time""" 
+    fig = plt.figure("IAT Graph")
+    ax = fig.subplots()
     for i, r in enumerate(results):
-        plt.plot([i*r.effective_period.value/base.value for i in range(len(r.increments))], r.increments, label=f"Results: {i}")
-    plt.legend()
-    plt.show()
+        ax.plot([i*r.effective_period.value/base.value for i in range(len(r.increments))], r.increments, label=f"ID: {i} Name: {r.name}")
+    ax.set_title("Total/Time")
+    ax.set_xlabel((str(base)+"S").replace(".", ": "))
+    ax.legend()
+    return fig 
 
 
 @command(name="-h", required=False, alias="--help")
@@ -497,16 +502,19 @@ def main(args:list[str]):
             COMMANDS["-h"].func(inp)
             return
         if "-i" not in mask or not mask["-i"]:
-            print("Enter 's' to stop adding analysis")
+            print("Enter 's' to stop adding analysis and compute results")
             feed = read("")
             feed.append(" ".join(args))
         else:
             feed = []
             for f in mask["-i"]:
                 feed += read(f)
-        for n in feed:
-            r = process(n.split())
-            if r:
+        for index, line in enumerate(feed):
+            try:
+                r = process(line.split())
+            except ValueError as e:
+                print("="*60+f"\nCould not process line {index+1}:\n\n\t{line}\n"+str(e)+"\n"+"="*60)
+            else:
                 results.append(r)
         if "-s" in mask and mask["-s"]:
             i = COMMANDS["-s"].func(*mask["-s"])
@@ -528,8 +536,8 @@ def main(args:list[str]):
         if "-g" in mask and results:
             base = parse_graph(*mask["-g"])
             if base:
-                graph(results, base)
-
+                fig = graph(results, base)
+                plt.show()
     except Exception as e:
         print(str(e))
         return 1

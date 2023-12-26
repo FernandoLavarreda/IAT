@@ -1,4 +1,6 @@
-#Exceute tests for compare_interest.py
+#Excecute tests for compare_interest.py
+#Fernando Lavarreda
+
 import pytest
 import compare_interests as cpi
 
@@ -50,8 +52,10 @@ def test_synonyms():
     for result in results[:-1]:
         assert result.increments[-1] == pytest.approx(results[-1].increments[-1])
 
+
 def test_exceptions():
     read = cpi.read("tests/e1")
     for line in read:
-        assert cpi.process(line.split())==None
+        with pytest.raises(ValueError):
+            cpi.process(line.split())
 

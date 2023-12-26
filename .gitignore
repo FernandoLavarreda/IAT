@@ -6,9 +6,11 @@ venv/
 *$py.class
 *.egg-info/
 
-
 #Tests
 .pytest_cache/
+
+#Playground files
+*.iat
 
 #Vim
 *.swp
