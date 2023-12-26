@@ -283,13 +283,15 @@ def read_args(args:list[str]):
             raise ValueError("Missing command: "+k+"\n"+cmd.name)
     return behavior
 
+
 @command(name="-i", required=False, alias="--input")
 def read(buf:str):   
     """Get input from a file(s) or from stdin, a file is read until EOF
         each line must be a valid command. If no argument(s) is provided
         it is assumed that assummed stdin which is read until a single
-        's' is entered
-        
+        's' is entered. Files can have comments starting a line with '#'
+        Empty lines will be ignored.
+
          Example:
           --input run-1.txt run-2.txt
     """
@@ -299,7 +301,7 @@ def read(buf:str):
         if not os.path.isfile(buf):
             raise ValueError(buf+" is not a file")
         file = open(buf)
-        feed = file.readlines()
+        feed = [line for line in file.readlines() if len(line) and "#" !=line[0]]
         file.close()
         stop = ""
     while stop:
@@ -317,7 +319,7 @@ class Result:
     utility:float
     net_investment:float
     increments:list[float]
-    effective_deposits:list[float]
+    net_deposits:list[float]
     effective_period:Period
     name:str
 
@@ -418,6 +420,7 @@ def write_console(results:list[Result]):
                       "[white]"+str(result.increments[-1])+"[/white]","[bold]"+str(result.net_investment)+"[/bold]")
     console.print(table)
 
+
 @command(name="-g", required=False, alias="--graph")
 def parse_graph(base:Period):
     """Graph results through time, x axis must be a valid Period
@@ -471,7 +474,7 @@ By: Fernando Lavarreda                                                          
     they can be referenced either by short form, long form or by value. Existing periods:
 """)
     max_name = max([len(a[1]) for a in ALIASES.values()])
-    ntabs = max_name//8+1
+    ntabs = max_name//8+1 #Assuming 8 space tabs
     print("\t\tS\t-\tL"+"\t"*ntabs+"-\tV\n")
     for alias in ALIASES.values():
         print("\t\t"+alias[0], end="\t|\t")

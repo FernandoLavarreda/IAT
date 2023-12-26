@@ -1,0 +1,9 @@
+#Testing file for exceptions
+#Missing required arguments --time
+--rate 0.2:Y --deposits 2000:fill
+#Incorrect rate
+--rate 0.2 --deposits 2000:fill --time 2:Y
+#Incorrect time
+--rate 0.2:Y --deposits 2000:fill --time Y
+#Missing arguments
+--rate --deposits --time

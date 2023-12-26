@@ -1,0 +1,7 @@
+#Testing file 2
+--rate 0.02:Y:T --deposits 30000:0:0 --time 1:Y 
+--rate 0.02:Y:T --deposits 30000 --time 1:YEAR 
+--rate 0.02:Y:T --deposits 30000:0:fill --time 1:YEAR 
+--rate 0.02:YEAR:90 --deposits 30000:0 -t 1:YEAR 
+-r 0.004931506849315068:TRIMESTER --deposits 30000:0 -t 1:YEAR 
+-r 0.004931506849315068:T:T --deposits 30000:0 -t 1:YEAR 
