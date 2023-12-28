@@ -254,7 +254,7 @@ def parse_time(command:str):
             unit = k
             break
     if not unit:
-        raise ValueError("Could not interpret unit: "+token[1])
+        raise ValueError("Could not interpret unit: "+tokens[1])
     return nunits, unit 
 
 
