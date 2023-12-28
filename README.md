@@ -1,6 +1,9 @@
 # Interest Analysis Tool (*IAT*)
 ### *By Fernando Lavarreda*
+![Tests](https://github.com/FernandoLavarreda/IAT/actions/workflows/python-app.yml/badge.svg)
 ## Commandline tool designed to analyze different scenarios with varying interests and deposits. 
+
+## About
 
 We have all heard the compound interest formula where $A=P(1+r)^n$ and how it is present in many common instances of our lives like credit cards, loans, savings accounts, etc.
 However, have you ever wondered about the behavior in more complex situations? What if you had a fixed deposit and at the end of the term you reinvested the returns
