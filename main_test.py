@@ -5,6 +5,55 @@ import pytest
 import compare_interests as cpi
 
 
+def test_compund():
+    """Test compound interest formula"""
+    assert cpi.compound_interest(deposits=[1e3, 1e3, 1e3], rate=0.0456)[-1] == pytest.approx(((1e3*(1+0.0456)+1e3)*(1+0.0456)+1e3)*(1+0.0456))
+    assert cpi.compound_interest(deposits=[2350, 0, 0], rate=0.0275)[-1] == pytest.approx(2350*(1+0.0275)**3)
+    assert cpi.compound_interest(deposits=[0, 1e4, 0], rate=0.0389)[-1] == pytest.approx((1e4*(1+0.0389)**2))
+
+
+def test_rate():
+    """Read rate and parse rate"""
+    assert cpi.parse_rate("0.0354:Y")[0] == pytest.approx(0.0354)
+    assert cpi.parse_rate("0.0354:Y")[1] == cpi.Period.YEAR
+    assert cpi.parse_rate("0.0673:Y:S")[0] == pytest.approx(0.0673)
+    assert cpi.parse_rate("0.0673:Y:S")[2] == cpi.Period.SEMESTER
+
+
+def test_compute_rate():
+    """Process actual rate"""
+    assert cpi.compute_rate_period(0.0354, cpi.Period.SEMESTER, None)[0] == pytest.approx(0.0354)
+    assert cpi.compute_rate_period(0.0354, cpi.Period.SEMESTER, None)[1] == cpi.Period.SEMESTER
+    assert cpi.compute_rate_period(0.0354, cpi.Period.SEMESTER, cpi.Period.DAY)[0] == pytest.approx(0.0354*cpi.Period.DAY.value/cpi.Period.SEMESTER.value)
+    assert cpi.compute_rate_period(0.0354, cpi.Period.SEMESTER, cpi.Period.DAY)[1] == cpi.Period.DAY
+    assert cpi.compute_rate_period(0.0791, cpi.Period.MONTH, cpi.Period.ZEAR)[0] == pytest.approx((1+0.0791)**(cpi.Period.ZEAR.value/cpi.Period.MONTH.value)-1)
+
+
+def test_deposits():
+    """Test parse and compute deposits"""
+    assert cpi.parse_deposits("1000:12000:1350", sep="%")[1] == pytest.approx([1000,12000,1350])
+    assert cpi.parse_deposits("1000:12000:1350", sep="%")[2] == False
+    assert cpi.parse_deposits("1000:fill", sep="%")[2] == True
+    assert cpi.parse_deposits("12000%0.02:Y%100:352:450", sep="%")[1] == pytest.approx(12000)
+    assert cpi.parse_deposits("12000%0.02:Y%100:352:450", sep="%")[2] == pytest.approx([100, 352, 450])
+    assert cpi.parse_deposits("12000%0.02:Y%100:352:450", sep="%")[3] == False
+    assert cpi.parse_deposits("12000%0.02:Y%100:352:450", sep="%")[4] == pytest.approx(0.02)
+    assert cpi.parse_deposits("12000%0.02:Y%100:352:450", sep="%")[5] == cpi.Period.YEAR
+
+
+def test_compute_deposit_lists():
+    """Test lists"""
+    assert cpi.compute_deposits_list1([12, 12, 12], False, 3) == pytest.approx([12, 12, 12])
+    assert cpi.compute_deposits_list1([15, 46, 78, 98], False, 6) == pytest.approx([15, 46, 78, 98, 0, 0])
+    assert cpi.compute_deposits_list1([15, 88, 99], True, 7) == pytest.approx([15, 88, 99, 99, 99, 99, 99])
+
+
+def test_time():
+    """Parse time"""
+    assert cpi.parse_time("12:S")[0] == pytest.approx(12)
+    assert cpi.parse_time("12:S")[1] == cpi.Period.SEMESTER
+
+
 def test_input_files():
     """Evaluate correct number of lines from multiple files"""
     files = ("tests/t1", "tests/t2")
@@ -16,7 +65,7 @@ def test_input_files():
     assert real_lines == len(read)
 
 
-def test_compound():
+def test_process():
     """Determine values computed are accurate"""
     lines = cpi.read("tests/t1")
     results = [cpi.process(line.split()) for line in lines]

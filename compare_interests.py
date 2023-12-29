@@ -136,7 +136,7 @@ def parse_deposits(command:str, sep:str="%"):
 
         Option 1: Read the simple deposits to be added to the compound interest analysis.
         
-         Expected paterns lists of deposits (floats):
+        Expected paterns lists of deposits (floats):
           - deposit1:deposit2:deposit3:...
           - deposit1:fill
          
@@ -168,6 +168,7 @@ def parse_deposits(command:str, sep:str="%"):
     """
     parsed = (0, *parse_deposits1(command)) if sep not in command else (1, *parse_deposits2(command))
     return parsed 
+
 
 def parse_deposits1(command:str):
     tokens = command.split(":")
