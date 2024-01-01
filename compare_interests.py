@@ -45,6 +45,7 @@ def command(name:str, required:bool=False, alias:str=""):
 class Period(Enum):
     """Specify periods in days"""
     DAY=1
+    WEEK=7
     MONTH=30
     BIMESTER=60
     TRIMESTER=90
@@ -52,18 +53,10 @@ class Period(Enum):
     SEMESTER=180
     YEAR=365
     ZEAR=730
+    LUSTRUM=1825
 
 
-ALIASES = {
-          Period.DAY:("D", "DAY", "1"),
-          Period.MONTH:("M", "MONTH", "30"),
-          Period.BIMESTER:("B", "BIMESTER", "60"),
-          Period.TRIMESTER:("T", "TRIMESTER", "90"),
-          Period.QUADMESTER:("Q", "QUADMESTER", "120"),
-          Period.SEMESTER:("S", "SEMESTER", "180"),
-          Period.YEAR:("Y", "YEAR", "365"),
-          Period.ZEAR:("Z", "ZEAR", "730"),
-          }
+ALIASES = {period:(period.name[0], period.name, str(period.value)) for period in Period}
 
 
 def compound_interest(deposits:list[float], rate:float)->list[float]:
