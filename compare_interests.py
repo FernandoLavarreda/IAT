@@ -165,6 +165,9 @@ def parse_deposits(command:str, sep:str="%"):
          Where balance is the initial balance for the main account, rate_pattern (see --help rate)
          specifies the rate for the short term account and deposit_patter (see --help deposit) are
          the deposits to the short term account
+
+         Shortcuts: k can be used to omit three zeros either for balance or deposits. 12k = 12000; 12kk = 12000000.
+         Importantly 1.2k will be still interpreted as 1.2. So a k is an alias for three 0s.
     """
     parsed = (0, *parse_deposits1(command)) if sep not in command else (1, *parse_deposits2(command))
     return parsed 
@@ -176,7 +179,7 @@ def parse_deposits1(command:str):
     fill = -1 if "fill" == tokens[-1] else len(tokens)
     for t in tokens[:fill]:
         try:
-            parsed_tokens.append(float(t))
+            parsed_tokens.append(float(t.replace("k", "000")))
         except ValueError:
             raise ValueError("Deposit: "+t+ " could not be interpreted")
     return parsed_tokens, fill==-1
@@ -188,7 +191,7 @@ def parse_deposits2(command:str, sep:str="%"):
         raise ValueError("Could not parse deposit pattern "+command)
     balance, rate, deposits = parse 
     try:
-        balance = float(balance)
+        balance = float(balance.replace("k", "000"))
     except ValueError as e:
         raise ValueError("Could not interpret balance: "+balance)
     try:
